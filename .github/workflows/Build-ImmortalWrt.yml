@@ -113,6 +113,10 @@ jobs:
           ccache -z
           echo "--- effective cache_dir ---"
           ccache -p 2>/dev/null | grep -i cache_dir || true
+          # 兜底：runner 镜像可能把 CCACHE_DIR 预设为 /workdir/.ccache 且不可写，
+          # 若上述重定向仍不生效，直接把 /workdir/.ccache 做成可写，消除 Permission denied
+          sudo mkdir -p /workdir/.ccache
+          sudo chmod -R 777 /workdir/.ccache
 
       - name: Cache
         uses: actions/cache@v6
@@ -167,6 +171,10 @@ jobs:
           sudo swapon /swapfile
           NPROC=$(($(/usr/bin/nproc) > 4 ? 4 : $(/usr/bin/nproc)))
           echo "CPU: $(/usr/bin/nproc) cores, using -j${NPROC}"
+
+          # 移除 runner 镜像预设的 CCACHE_DIR=/workdir/.ccache（不可写，且压过配置文件），
+          # 让 ccache 回退读取 /etc/ccache.conf（已指向可写的 workspace/.ccache）
+          unset CCACHE_DIR
 
           # 预下载所有依赖（减少编译中断）
           /usr/bin/make download -j${NPROC}
