@@ -26,6 +26,7 @@ on:
 env:
   TZ: Asia/Shanghai
   CCACHE_DIR: ${{ github.workspace }}/.ccache
+  CCACHE_CONFIGPATH: ${{ github.workspace }}/.ccache.conf
   CCACHE_MAXSIZE: 2G
 
 jobs:
@@ -99,8 +100,11 @@ jobs:
       - name: Setup ccache
         run: |
           mkdir -p "$CCACHE_DIR"
+          # 强制 ccache 读取我们可控的配置文件（绝对路径），避免 runner 镜像默认
+          # /workdir/.ccache 不可写、且 HOME 漂移导致用户配置读不到的问题
+          export CCACHE_CONFIGPATH="$CCACHE_CONFIGPATH"
+          ccache --set-config=cache_dir="$CCACHE_DIR"
           ccache --set-config=max_size=$CCACHE_MAXSIZE
-          ccache --set-config=cache_dir=$CCACHE_DIR
           ccache --set-config=compression=true
           ccache -z
 
@@ -147,6 +151,7 @@ jobs:
           CC: ccache gcc
           CXX: ccache g++
           CCACHE_COMPRESS: 1
+          CCACHE_CONFIGPATH: ${{ github.workspace }}/.ccache.conf
         run: |
           # GitHub 免费 runner 只有 7GB RAM，编译大量包容易 OOM
           # 增加 4GB swap + 限制并行数为 4 核
