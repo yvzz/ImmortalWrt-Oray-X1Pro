@@ -19,7 +19,7 @@ on:
         type: boolean
         default: true
   schedule:
-    - cron: 0 19 * * *  
+    - cron: 0 16 * * *  
   repository_dispatch:
     types: [ "X1Pro Update" ]
 
