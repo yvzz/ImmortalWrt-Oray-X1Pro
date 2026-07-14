@@ -12,7 +12,7 @@ on:
         description: '启用详细编译日志 V=s（出错调试用）'
         required: false
         type: boolean
-        default: false
+        default: true
       publish:
         description: '发布编译产物到 Release'
         required: false
@@ -100,13 +100,19 @@ jobs:
       - name: Setup ccache
         run: |
           mkdir -p "$CCACHE_DIR"
-          # 强制 ccache 读取我们可控的配置文件（绝对路径），避免 runner 镜像默认
-          # /workdir/.ccache 不可写、且 HOME 漂移导致用户配置读不到的问题
-          export CCACHE_CONFIGPATH="$CCACHE_CONFIGPATH"
+          # 关键修复：构建时 CCACHE_DIR / CCACHE_CONFIGPATH 环境变量不会被 ccache 进程
+          # 继承（OpenWrt 的 make 过滤环境 / HOME 在 Setup 与 Build 步间漂移），导致 ccache
+          # 回退读取 runner 镜像的系统配置 /etc/ccache.conf（cache_dir=/workdir/.ccache，不可写），
+          # 进而 Permission denied。直接用系统级配置兜底，任何 ccache 调用都会读取，
+          # 且指向可写、并被 actions/cache 持久化的 workspace/.ccache。
+          echo "cache_dir = $CCACHE_DIR" | sudo tee /etc/ccache.conf >/dev/null
+          sudo chmod 644 /etc/ccache.conf
           ccache --set-config=cache_dir="$CCACHE_DIR"
           ccache --set-config=max_size=$CCACHE_MAXSIZE
           ccache --set-config=compression=true
           ccache -z
+          echo "--- effective cache_dir ---"
+          ccache -p 2>/dev/null | grep -i cache_dir || true
 
       - name: Cache
         uses: actions/cache@v6
