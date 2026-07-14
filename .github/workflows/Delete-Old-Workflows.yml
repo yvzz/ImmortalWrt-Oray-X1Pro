@@ -29,6 +29,9 @@ on:
   schedule:
     - cron: 0 3 * * 0
 
+permissions:
+  actions: write  # 必须，写权限才能删除其他 workflow runs
+
 jobs:
   Cleaning:
     runs-on: ubuntu-24.04
