@@ -158,9 +158,8 @@ jobs:
         id: compile
         working-directory: source
         env:
-          CC: ccache gcc
-          CXX: ccache g++
-          CCACHE_COMPRESS: 1
+          # ⚠️ 不设 CC/CXX=ccache，避免干扰 toolchain/gcc/initial 交叉编译器构建
+          CCACHE_DISABLE: 1
           CCACHE_CONFIGPATH: ${{ github.workspace }}/.ccache.conf
         run: |
           # GitHub 免费 runner 只有 7GB RAM，编译大量包容易 OOM
