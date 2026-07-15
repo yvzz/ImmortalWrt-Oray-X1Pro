@@ -175,6 +175,9 @@ jobs:
           # 让 ccache 回退读取 /etc/ccache.conf（已指向可写的 workspace/.ccache）
           unset CCACHE_DIR
 
+          # 强制禁用 ccache —— OpenWrt 的 make 会覆盖 CC/CXX，必须显式导出
+          export CCACHE_DISABLE=1
+
           # 预下载所有依赖（减少编译中断）
           /usr/bin/make download -j${NPROC}
 
