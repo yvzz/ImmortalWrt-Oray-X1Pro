@@ -82,7 +82,6 @@ jobs:
       - name: Prepare feeds for cache key
         id: feeds
         run: |
-          # 用 ls-remote 取稳定 commit SHA，避免 git clone --depth=1 每次 SHA 不同导致 cache key 不稳定
           FEEDS_PACKAGES=$(git ls-remote https://github.com/immortalwrt/packages.git openwrt-24.10 | cut -f1)
           FEEDS_LUCI=$(git ls-remote https://github.com/immortalwrt/luci.git openwrt-24.10 | cut -f1)
           FEEDS_ISTORE=$(git ls-remote https://github.com/linkease/istore.git master | cut -f1)
@@ -100,11 +99,6 @@ jobs:
       - name: Setup ccache
         run: |
           mkdir -p "$CCACHE_DIR"
-          # 关键修复：构建时 CCACHE_DIR / CCACHE_CONFIGPATH 环境变量不会被 ccache 进程
-          # 继承（OpenWrt 的 make 过滤环境 / HOME 在 Setup 与 Build 步间漂移），导致 ccache
-          # 回退读取 runner 镜像的系统配置 /etc/ccache.conf（cache_dir=/workdir/.ccache，不可写），
-          # 进而 Permission denied。直接用系统级配置兜底，任何 ccache 调用都会读取，
-          # 且指向可写、并被 actions/cache 持久化的 workspace/.ccache。
           echo "cache_dir = $CCACHE_DIR" | sudo tee /etc/ccache.conf >/dev/null
           sudo chmod 644 /etc/ccache.conf
           ccache --set-config=cache_dir="$CCACHE_DIR"
@@ -113,8 +107,6 @@ jobs:
           ccache -z
           echo "--- effective cache_dir ---"
           ccache -p 2>/dev/null | grep -i cache_dir || true
-          # 兜底：runner 镜像可能把 CCACHE_DIR 预设为 /workdir/.ccache 且不可写，
-          # 若上述重定向仍不生效，直接把 /workdir/.ccache 做成可写，消除 Permission denied
           sudo mkdir -p /workdir/.ccache
           sudo chmod -R 777 /workdir/.ccache
 
@@ -158,31 +150,18 @@ jobs:
         id: compile
         working-directory: source
         env:
-          # ⚠️ 不设 CC/CXX=ccache，避免干扰 toolchain/gcc/initial 交叉编译器构建
           CCACHE_DISABLE: 1
           CCACHE_CONFIGPATH: ${{ github.workspace }}/.ccache.conf
         run: |
-          # GitHub 免费 runner 只有 7GB RAM，编译大量包容易 OOM
-          # 增加 4GB swap + 限制并行数为 4 核
           sudo fallocate -l 4G /swapfile 2>/dev/null || sudo dd if=/dev/zero of=/swapfile bs=1M count=4096
           sudo chmod 600 /swapfile
           sudo mkswap /swapfile
           sudo swapon /swapfile
           NPROC=$(($(/usr/bin/nproc) > 4 ? 4 : $(/usr/bin/nproc)))
           echo "CPU: $(/usr/bin/nproc) cores, using -j${NPROC}"
-
-          # 移除 runner 镜像预设的 CCACHE_DIR=/workdir/.ccache（不可写，且压过配置文件），
-          # 让 ccache 回退读取 /etc/ccache.conf（已指向可写的 workspace/.ccache）
           unset CCACHE_DIR
-
-          # 强制禁用 ccache —— OpenWrt 的 make 会覆盖 CC/CXX，必须显式导出
           export CCACHE_DISABLE=1
-
-          # 预下载所有依赖（减少编译中断）
           /usr/bin/make download -j${NPROC}
-
-          # binutils-2.42 readelf.c 使用了 glibc 专有的 off64_t / fseeko64，
-          # musl libc 不支持，直接 patch 源码用 off_t / fseeko 替代
           /usr/bin/make toolchain/binutils/prepare V=s 2>/dev/null || true
           for rf in build_dir/toolchain-*/binutils-*/binutils/readelf.c; do
             if [ -f "$rf" ]; then
@@ -191,14 +170,12 @@ jobs:
             fi
           done
 
-          # 编译，始终保留完整日志
           if [ "${{ inputs.verbose }}" = "true" ]; then
             /usr/bin/make -j${NPROC} V=s 2>&1 | tee build.log
           else
             /usr/bin/make -j${NPROC} 2>&1 | tee build.log
           fi
 
-          # 验证固件是否生成
           SYSUPGRADE=$(find bin/targets -name "*oray_x1pro-v1-ubootmod*sysupgrade.bin" 2>/dev/null | head -1)
           if [ -n "$SYSUPGRADE" ]; then
             echo "Firmware built: $SYSUPGRADE ($(du -h "$SYSUPGRADE" | cut -f1))"
