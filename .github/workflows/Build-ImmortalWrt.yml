@@ -4,15 +4,15 @@ permissions:
   contents: write
 
 on:
-  # push:
-  #   branches: [ main, master ]
+  push:
+    branches: [ main, master ]
   workflow_dispatch:
     inputs:
       verbose:
         description: '启用详细编译日志 V=s（出错调试用）'
         required: false
         type: boolean
-        default: true
+        default: false
       publish:
         description: '发布编译产物到 Release'
         required: false
