@@ -6,10 +6,5 @@
 
 ## immortalwrt 源码
 
-编译自 https://github.com/padavanonly/immortalwrt-mt798x-6.6 ，兼容 Oray X1 Pro 128M flash
+编译自 https://github.com/padavanonly/immortalwrt-mt798x-6.6 ，适用于 Oray X1 Pro 128M 1226
 
-
-
-## License
-
-[MIT](https://github.com/P3TERX/Actions-OpenWrt/blob/main/LICENSE) © [**P3TERX**](https://p3terx.com)
