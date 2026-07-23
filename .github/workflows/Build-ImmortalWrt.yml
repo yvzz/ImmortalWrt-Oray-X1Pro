@@ -168,6 +168,15 @@ jobs:
               echo "Patched $rf"
             fi
           done
+          # 增量展开 GCC 源码（不完整编译），patch 其残留的 off64_t
+          /usr/bin/make toolchain/gcc/initial/prepare V=s 2>/dev/null || true
+          for f in build_dir/toolchain-*/gcc-*/libcpp/files.c \
+                   build_dir/toolchain-*/gcc-*/gcc/genhooks.c \
+                   build_dir/toolchain-*/gcc-*/gcc/system.h; do
+            [ -f "$f" ] || continue
+            sed -i 's/off64_t/off_t/g; s/fseeko64/fseeko/g' "$f"
+            echo "Patched $f"
+          done
 
           if [ "${{ inputs.verbose }}" = "true" ]; then
             /usr/bin/make -j${NPROC} V=s 2>&1 | tee build.log
